@@ -40,7 +40,28 @@ class ShoppingBehaviorModel:
         self.knn_item.fit(self.X_train_scaled, self.y_item_train)
         self.knn_payment.fit(self.X_train_scaled, self.y_payment_train)
 
-    def predict(self, user_age, user_gender, user_location):
+    # def predict(self, user_age, user_gender, user_location):
+    #     user_gender_encoded = self.le_gender.transform([user_gender])[0]
+
+    #     # Find encoded location
+    #     user_location_encoded = self.df.loc[self.df['Location'] == user_location, 'Location'].iloc[0]
+
+    #     new_customer = pd.DataFrame({
+    #         'Age': [user_age],
+    #         'Gender': [user_gender_encoded],
+    #         'Location': [user_location_encoded]
+    #     })
+
+    #     new_customer_scaled = self.scaler.transform(new_customer[self.numeric_features])
+
+    #     predicted_item = self.knn_item.predict(new_customer_scaled)[0]
+    #     predicted_payment = self.knn_payment.predict(new_customer_scaled)[0]
+
+    #     predicted_payment_decoded = self.le_payment.inverse_transform([predicted_payment])[0]
+
+    #     return predicted_item, predicted_payment_decoded
+    
+    def predict(self, user_age, user_gender, user_location, k=5):
         user_gender_encoded = self.le_gender.transform([user_gender])[0]
 
         # Find encoded location
@@ -54,9 +75,23 @@ class ShoppingBehaviorModel:
 
         new_customer_scaled = self.scaler.transform(new_customer[self.numeric_features])
 
-        predicted_item = self.knn_item.predict(new_customer_scaled)[0]
-        predicted_payment = self.knn_payment.predict(new_customer_scaled)[0]
+        # Find k nearest neighbors
+        distances, indices = self.knn_item.kneighbors(new_customer_scaled, n_neighbors=k)
 
-        predicted_payment_decoded = self.le_payment.inverse_transform([predicted_payment])[0]
+        print("Indices:", indices)  # Print the indices for debugging
 
-        return predicted_item, predicted_payment_decoded
+        # Adjust the size of self.knn_item.classes_ if necessary
+        max_index = max(indices.flatten())
+        if max_index >= len(self.knn_item.classes_):
+            self.knn_item.classes_ = range(max_index + 1)
+
+        # Retrieve predicted items for k nearest neighbors
+        predicted_items = [self.df['Item Purchased'].iloc[index] for index in indices.flatten()]
+
+        # Retrieve predicted payments for new customer
+        predicted_payments = [self.le_payment.inverse_transform([payment])[0] for payment in self.knn_payment.predict(new_customer_scaled)]
+
+        return predicted_items, predicted_payments
+
+
+
